@@ -287,7 +287,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function defaultState(){
   return {
-    settings:{ batchSize:30, meterStalls:[1,2,3,4], unit:'kg', burst:3, quality:0.92, camId:'',
+    settings:{ batchSize:30, meterStalls:[1,2,3,4], unit:'kg', burst:3, quality:0.72, maxDim:1600, camId:'',
       guide:{ l:0.14, r:0.86, f:0.86 }, ghostKey:null },
     session:{ id:Date.now().toString(36), date:today(), milking:(new Date().getHours() < 13 ? 'AM' : 'PM'), nextEwe:1 },
     batches:[], cur:0
@@ -539,8 +539,11 @@ document.addEventListener('visibilitychange', () => {
 
 function grab(){
   return new Promise((res, rej) => {
-    cvs.width = vid.videoWidth; cvs.height = vid.videoHeight;
-    cvs.getContext('2d').drawImage(vid, 0, 0);
+    const vw = vid.videoWidth, vh = vid.videoHeight;
+    const max = S.settings.maxDim || vw;
+    const k = Math.min(1, max / Math.max(vw, vh));
+    cvs.width = Math.round(vw * k); cvs.height = Math.round(vh * k);
+    cvs.getContext('2d').drawImage(vid, 0, 0, cvs.width, cvs.height);
     cvs.toBlob(b => b ? res(b) : rej(new Error('capture failed')), 'image/jpeg', S.settings.quality);
   });
 }
@@ -584,11 +587,26 @@ $('shutter').onclick = async () => {
   } catch(e){ toast('Photo failed: ' + e.message); }
   finally { busy = false; $('shutter').disabled = !stream; }
 };
+function downscaleFile(file){
+  return new Promise((res, rej) => {
+    const img = new Image(); const u = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = S.settings.maxDim || img.width;
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      cvs.width = Math.round(img.width * k); cvs.height = Math.round(img.height * k);
+      cvs.getContext('2d').drawImage(img, 0, 0, cvs.width, cvs.height);
+      URL.revokeObjectURL(u);
+      cvs.toBlob(b => b ? res(b) : rej(new Error('resize failed')), 'image/jpeg', S.settings.quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('could not read photo')); };
+    img.src = u;
+  });
+}
 $('nativeBtn').onclick = () => $('nativeInput').click();
 $('nativeInput').onchange = async e => {
   const f = e.target.files && e.target.files[0]; e.target.value = '';
   if (!f || !camCtx) return;
-  try { await storeShots([f]); await afterCapture(); } catch(err){ toast('Could not save photo: ' + err.message); }
+  try { const b = await downscaleFile(f); await storeShots([b]); await afterCapture(); } catch(err){ toast('Could not save photo: ' + err.message); }
 };
 $('camSkip').onclick = () => {
   const st = batch().stalls[camCtx.si]; if (st.ewe != null){ toast('This stall already has a ewe'); return; }
