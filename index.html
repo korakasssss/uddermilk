@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Milk Capture">
+<meta name="theme-color" content="#f3f1ea">
+<title>Milk Capture</title>
+<style>
+:root{
+  --bg:#f3f1ea; --card:#fbfaf6; --ink:#1c1d1a; --muted:#56574f; --line:#d9d5c8;
+  --green:#2f5d3a; --green-soft:#dfe8d9; --amber:#a35f0f; --amber-soft:#f4e7d4; --red:#a1321f;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.screen{display:none;position:fixed;inset:0;flex-direction:column}
+.screen.on{display:flex}
+.hidden{display:none!important}
+
+/* Home */
+#home{padding-top:var(--safe-t)}
+.hdr{padding:14px 16px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.hdr-row{display:flex;align-items:center;gap:8px}
+.icon-btn{width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:var(--card);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.icon-btn:disabled{opacity:.35}
+.batch-title{flex:1;display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.batch-title b{font-size:26px;font-weight:700}
+.batch-title span{font-size:13px;color:var(--muted)}
+.prog{height:8px;border-radius:4px;background:#e2ded1;overflow:hidden}
+.prog>div{height:100%;background:var(--green);width:0;transition:width .3s}
+.prog-text{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.sweep-btn{height:56px;border:none;border-radius:14px;background:var(--ink);color:var(--bg);font-size:17px;font-weight:600}
+.sweep-btn.done{background:var(--green-soft);color:var(--green);border:1.5px solid var(--green)}
+.grid{flex:1;overflow-y:auto;padding:12px 12px 16px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-content:start}
+.tile{height:76px;padding:7px;border-radius:12px;border:2px solid #cfcabb;background:var(--card);
+  display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;text-align:left}
+.tile.partial{border-color:var(--amber)}
+.tile.done{border-color:var(--green);background:var(--green-soft)}
+.tile.empty{background:repeating-linear-gradient(135deg,#ebe8de 0 6px,#f3f1ea 6px 12px);border-style:dashed}
+.tile-top{display:flex;justify-content:space-between;align-items:flex-start}
+.tile .ewe{font-size:19px;font-weight:700;line-height:1}
+.tile .ewe.none{color:#8d8e86;font-weight:500;font-size:14px}
+.tag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--ink);color:var(--bg)}
+.tile-bot{display:flex;justify-content:space-between;align-items:center}
+.dots{display:flex;gap:4px}
+.dot{width:9px;height:9px;border-radius:5px;border:1.5px solid #8a8b83}
+.dot.on{border:none;background:var(--green)}
+.tile.partial .dot.on{background:var(--amber)}
+.stall-lbl{font-size:10px;color:var(--muted)}
+.foot{padding:10px 12px calc(12px + var(--safe-b));border-top:1px solid var(--line);display:flex;gap:8px;background:var(--bg)}
+.btn{height:52px;border-radius:12px;border:1.5px solid var(--ink);background:transparent;font-size:15px;font-weight:600;padding:0 14px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.green{background:var(--green);border-color:var(--green);color:#fff}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn:disabled{opacity:.4}
+.grow{flex:1}
+
+/* Camera */
+#cam{background:#141512;color:#f3f1ea;padding-top:var(--safe-t)}
+.camtop{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px}
+.cam-icon{width:44px;height:44px;border-radius:22px;border:none;background:#2a2b27;color:#f3f1ea;display:flex;align-items:center;justify-content:center;flex:none}
+.cam-title{text-align:center;line-height:1.2}
+.cam-title b{font-size:17px}
+.cam-title span{display:block;font-size:12px;color:#c9c6ba}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px;vertical-align:2px}
+.pill.before{background:#9fd0a8;color:#141512}
+.pill.after{background:#e8a54b;color:#141512}
+#stage{flex:1;position:relative;margin:0 6px;border-radius:14px;overflow:hidden;background:#000}
+#vid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#ov{position:absolute;pointer-events:none}
+#ghost{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;opacity:.35;display:none}
+#ov.ghost #ghost{display:block}
+.gl{position:absolute;pointer-events:none}
+.gl.v{top:0;bottom:0;width:44px;margin-left:-22px}
+.gl.h{left:0;right:0;height:44px;margin-top:-22px}
+.gl.v::after{content:"";position:absolute;left:20px;top:0;bottom:0;border-left:3px dashed #9fd0a8}
+.gl.h::after{content:"";position:absolute;top:20px;left:0;right:0;border-top:3px dashed #9fd0a8;opacity:.8}
+#ov.edit .gl{pointer-events:auto;touch-action:none}
+#ov.edit .gl.v::after{border-left-style:solid;border-left-color:#e8a54b}
+#ov.edit .gl.h::after{border-top-style:solid;border-top-color:#e8a54b}
+#bigNum{position:absolute;right:14px;top:10px;font-size:64px;font-weight:800;color:#fff;opacity:.85;text-shadow:0 2px 8px #000;pointer-events:none}
+#camMsg{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:92%;padding:8px 14px;border-radius:18px;background:rgba(20,21,18,.85);font-size:13px;text-align:center}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .15s}
+#flash.go{opacity:.7;transition:none}
+#lastThumb{position:absolute;left:10px;bottom:10px;width:64px;height:64px;border-radius:8px;border:2px solid #f3f1ea;object-fit:cover;display:none}
+.cambot{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 6px}
+.cam-side{width:88px;height:48px;border-radius:12px;border:none;background:#2a2b27;color:#f3f1ea;font-size:14px;font-weight:600}
+#shutter{width:84px;height:84px;border-radius:42px;border:5px solid #f3f1ea;background:transparent;padding:0;display:flex;align-items:center;justify-content:center}
+#shutter::after{content:"";width:66px;height:66px;border-radius:33px;background:#f3f1ea;transition:transform .1s}
+#shutter:active::after{transform:scale(.9)}
+#shutter:disabled{opacity:.4}
+.camaux{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 12px calc(10px + var(--safe-b));flex-wrap:wrap}
+.chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid #4a4b45;background:transparent;color:#f3f1ea;font-size:13px}
+.chip.on{background:#f3f1ea;color:#141512}
+#res{font-size:11px;color:#8a8b83}
+
+/* Sheets */
+.backdrop{position:fixed;inset:0;background:rgba(28,29,26,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.backdrop.on{display:flex}
+.sheet{width:100%;max-width:560px;max-height:92%;overflow-y:auto;background:var(--bg);border-radius:20px 20px 0 0;
+  padding:18px 16px calc(18px + var(--safe-b));display:flex;flex-direction:column;gap:14px}
+.sheet h2{margin:0;font-size:24px}
+.sheet .sub{font-size:13px;color:var(--muted);margin-top:2px}
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.shot{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.shot b{font-size:14px}
+.shot .img{aspect-ratio:3/4;border-radius:8px;background:#3a3b36;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#c9c6ba;font-size:12px}
+.shot img{width:100%;height:100%;object-fit:cover}
+.shot small{font-size:12px;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:14px;font-weight:600}
+.field .hint{font-size:12px;color:var(--muted)}
+input[type=text],input[type=number],input[type=date],select{height:50px;border-radius:10px;border:1.5px solid #8a8b83;background:#fff;padding:0 12px;font-size:17px;color:var(--ink);width:100%;-webkit-user-select:text;user-select:text}
+.milk-in{font-size:30px!important;height:64px!important;font-weight:700}
+.row{display:flex;gap:8px;align-items:center}
+.seg{display:flex;border:1.5px solid var(--ink);border-radius:10px;overflow:hidden;flex:none}
+.seg button{height:47px;min-width:52px;border:none;background:transparent;font-weight:600}
+.seg button.on{background:var(--ink);color:var(--bg)}
+
+/* Full pages */
+.page{background:var(--bg);padding-top:var(--safe-t)}
+.page-hdr{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.page-hdr h1{margin:0;font-size:22px}
+.page-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px;padding-bottom:calc(24px + var(--safe-b))}
+.list-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px}
+.list-row .t{flex:1;display:flex;flex-direction:column;gap:2px}
+.list-row .t b{font-size:16px}
+.list-row .t span{font-size:13px;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);line-height:1.45}
+.status{padding:12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:14px}
+#toast{position:fixed;left:50%;bottom:calc(90px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:20px;font-size:14px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<section id="home" class="screen on" aria-label="Batch">
+  <div class="hdr">
+    <div class="hdr-row">
+      <button class="icon-btn" id="prevBatch" aria-label="Previous batch"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="batch-title"><b id="batchName">Batch 1</b><span id="batchSub"></span></div>
+      <button class="icon-btn" id="nextBatchNav" aria-label="Next batch"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+    <div class="prog"><div id="progBar"></div></div>
+    <div class="prog-text num"><span id="progText"></span><span id="eweRange"></span></div>
+    <button class="sweep-btn" id="sweepBtn">Start before sweep</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="foot">
+    <button class="btn" id="settingsBtn">Settings</button>
+    <button class="btn" id="exportBtn">Export</button>
+    <button class="btn primary grow" id="newBatchBtn">New batch</button>
+  </div>
+</section>
+
+<!-- CAMERA -->
+<section id="cam" class="screen" aria-label="Camera">
+  <div class="camtop">
+    <button class="cam-icon" id="camClose" aria-label="Close camera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="cam-title"><b id="camTitle"></b><span id="camSub"></span></div>
+    <button class="cam-icon" id="guideBtn" aria-label="Adjust guide lines"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3v18M18 3v18M3 17h18"/></svg></button>
+  </div>
+  <div id="stage">
+    <video id="vid" playsinline muted autoplay></video>
+    <div id="ov"><img id="ghost" alt=""><div class="gl v" data-k="l"></div><div class="gl v" data-k="r"></div><div class="gl h" data-k="f"></div></div>
+    <div id="bigNum" class="num"></div>
+    <img id="lastThumb" alt="Last photo">
+    <div id="camMsg">Line up the rails and floor with the green lines</div>
+    <div id="flash"></div>
+  </div>
+  <div class="cambot">
+    <button class="cam-side" id="camBack">Back</button>
+    <button id="shutter" aria-label="Take photo"></button>
+    <button class="cam-side" id="camSkip">Empty</button>
+  </div>
+  <div class="camaux">
+    <button class="chip" id="ghostBtn">Ghost off</button>
+    <button class="chip" id="setGhostBtn">Use last as ghost</button>
+    <button class="chip" id="nativeBtn">iPhone camera</button>
+    <span id="res" class="num"></span>
+  </div>
+  <input type="file" id="nativeInput" accept="image/*" capture="environment" class="hidden">
+</section>
+
+<!-- SETTINGS -->
+<section id="settings" class="screen page" aria-label="Settings">
+  <div class="page-hdr"><button class="icon-btn" id="settingsClose" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Settings</h1></div>
+  <div class="page-body">
+    <div class="field"><label for="sDate">Session date</label><input type="date" id="sDate"></div>
+    <div class="field"><label>Milking</label><div class="seg" id="sMilking"><button data-v="AM">AM</button><button data-v="PM">PM</button></div></div>
+    <div class="field"><label for="sNext">Next ewe number</label><input type="number" id="sNext" inputmode="numeric" min="1"><span class="hint">The number the next new ewe gets. Numbers go up by one across all batches.</span></div>
+    <div class="field"><label for="sBatch">Stalls per batch</label><input type="number" id="sBatch" inputmode="numeric" min="1" max="60"><span class="hint">Applies to new batches.</span></div>
+    <div class="field"><label for="sMeters">Milkmeter stalls</label><input type="text" id="sMeters" inputmode="numeric" placeholder="1,2,3,4"><span class="hint">Stall numbers with a milkmeter, separated by commas.</span></div>
+    <div class="field"><label>Milk unit</label><div class="seg" id="sUnit"><button data-v="kg">kg</button><button data-v="L">L</button></div></div>
+    <div class="field"><label for="sBurst">Photos per shot</label><input type="number" id="sBurst" inputmode="numeric" min="1" max="5"><span class="hint">Burst size. You pick the sharpest frame later.</span></div>
+    <div class="field"><label for="sCam">Camera</label><select id="sCam"><option value="">Default back camera</option></select><span class="hint">Camera names appear after you open the camera once.</span></div>
+    <button class="btn" id="resetGuide">Reset guide lines</button>
+  </div>
+</section>
+
+<!-- EXPORT -->
+<section id="exportPage" class="screen page" aria-label="Export">
+  <div class="page-hdr"><button class="icon-btn" id="exportClose" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Export</h1></div>
+  <div class="page-body">
+    <div class="status num" id="storageInfo">Checking storage…</div>
+    <div id="batchList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <button class="btn primary" id="exportAll">Export whole session</button>
+    <div class="status hidden" id="exportStatus"></div>
+    <div class="row hidden" id="exportReady">
+      <button class="btn green grow" id="shareZip">Share ZIP</button>
+      <button class="btn grow" id="saveZip">Download</button>
+    </div>
+    <p class="note">Each ZIP holds a CSV with one row per stall, plus the photos named by batch, ewe and shot, like b03_e063_before_1.jpg. Export per batch if the whole session gets very large.</p>
+    <button class="btn danger" id="clearSession">Clear session and start fresh</button>
+  </div>
+</section>
+
+<!-- STALL SHEET -->
+<div class="backdrop" id="stallBack">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="stTitle">
+    <div class="row"><div class="grow"><h2 id="stTitle"></h2><div class="sub" id="stSub"></div></div>
+      <button class="icon-btn" id="stClose" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="shots">
+      <div class="shot"><b>Before</b><div class="img" id="stBeforeImg">No photo</div><small id="stBeforeT"></small><button class="btn" id="stBefore">Take before</button></div>
+      <div class="shot"><b>After</b><div class="img" id="stAfterImg">No photo</div><small id="stAfterT"></small><button class="btn primary" id="stAfter">Take after</button></div>
+    </div>
+    <div class="field" id="stMilkField"><label for="stMilk">Milk from meter</label>
+      <div class="row"><input type="text" id="stMilk" class="milk-in num" inputmode="decimal" placeholder="0.00"><button class="btn green" id="stMilkSave">Save</button></div></div>
+    <button class="btn" id="stEmpty">Mark stall empty</button>
+  </div>
+</div>
+
+<!-- MILK MODAL -->
+<div class="backdrop" id="milkBack">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mkTitle">
+    <div><h2 id="mkTitle">Milk</h2><div class="sub" id="mkSub"></div></div>
+    <div class="row"><input type="text" id="mkVal" class="milk-in num grow" inputmode="decimal" placeholder="0.00"><span id="mkUnit" style="font-size:20px;font-weight:600"></span></div>
+    <div class="row"><button class="btn grow" id="mkSkip">Later</button><button class="btn green grow" id="mkSave">Save milk</button></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(async function(){
+'use strict';
+
+/* ---------- storage ---------- */
+const db = await new Promise((res, rej) => {
+  const r = indexedDB.open('milkcap', 1);
+  r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('kv'); d.createObjectStore('photos'); };
+  r.onsuccess = () => res(r.result);
+  r.onerror = () => rej(r.error);
+});
+function tx(store, mode, fn){
+  return new Promise((res, rej) => {
+    const t = db.transaction(store, mode); const s = t.objectStore(store);
+    let out; const r = fn(s); if (r) r.onsuccess = () => { out = r.result; };
+    t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+}
+const idbPut = (st, k, v) => tx(st, 'readwrite', s => s.put(v, k));
+const idbGet = (st, k) => tx(st, 'readonly', s => s.get(k));
+const idbDel = (st, k) => tx(st, 'readwrite', s => s.delete(k));
+const idbClear = st => tx(st, 'readwrite', s => s.clear());
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+
+/* ---------- state ---------- */
+const $ = id => document.getElementById(id);
+const pad = (n, w=2) => String(n).padStart(w, '0');
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const ts = () => { const d = new Date(); return `${today()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const hm = t => t ? t.slice(11,16) : '';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function defaultState(){
+  return {
+    settings:{ batchSize:30, meterStalls:[1,2,3,4], unit:'kg', burst:3, quality:0.92, camId:'',
+      guide:{ l:0.14, r:0.86, f:0.86 }, ghostKey:null },
+    session:{ id:Date.now().toString(36), date:today(), milking:(new Date().getHours() < 13 ? 'AM' : 'PM'), nextEwe:1 },
+    batches:[], cur:0
+  };
+}
+let S = (await idbGet('kv', 'state')) || defaultState();
+function newBatch(){
+  const n = S.batches.length + 1, stalls = [];
+  for (let i = 1; i <= S.settings.batchSize; i++) stalls.push({ stall:i, ewe:null, empty:false, before:null, after:null, milk:null });
+  S.batches.push({ n, created:ts(), stalls });
+  S.cur = S.batches.length - 1;
+}
+if (!S.batches.length) newBatch();
+let saving = Promise.resolve();
+function save(){ saving = saving.then(() => idbPut('kv', 'state', S)).catch(e => toast('Could not save: ' + e.message)); return saving; }
+save();
+
+const isMeter = st => S.settings.meterStalls.includes(st.stall);
+const isDone = st => !st.empty && st.before && st.after && (!isMeter(st) || st.milk);
+const batch = () => S.batches[S.cur];
+function ensureEwe(st){ if (st.ewe == null){ st.ewe = S.session.nextEwe++; } }
+
+let toastT;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); }
+function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+
+/* ---------- home ---------- */
+function renderHome(){
+  const b = batch();
+  $('batchName').textContent = 'Batch ' + b.n;
+  $('batchSub').textContent = `${S.session.date} · ${S.session.milking} milking`;
+  $('prevBatch').disabled = S.cur === 0;
+  $('nextBatchNav').disabled = S.cur === S.batches.length - 1;
+  const occ = b.stalls.filter(s => !s.empty);
+  const done = occ.filter(isDone).length;
+  $('progBar').style.width = occ.length ? (100 * done / occ.length) + '%' : '0';
+  $('progText').textContent = `${done}/${occ.length} complete`;
+  const ewes = b.stalls.filter(s => s.ewe != null).map(s => s.ewe);
+  $('eweRange').textContent = ewes.length ? `ewes ${Math.min(...ewes)}–${Math.max(...ewes)}` : 'no ewes yet';
+  const missing = b.stalls.filter(s => !s.empty && !s.before).length;
+  const sb = $('sweepBtn');
+  sb.classList.toggle('done', missing === 0);
+  sb.textContent = missing === 0 ? 'Before photos done, tap a ewe for after' : (missing === b.stalls.length ? 'Start before sweep' : `Continue before sweep (${missing} left)`);
+  const g = $('grid'); g.innerHTML = '';
+  b.stalls.forEach((st, i) => {
+    const el = document.createElement('button');
+    const partial = !st.empty && !isDone(st) && (st.before || st.after || st.milk);
+    el.className = 'tile' + (st.empty ? ' empty' : isDone(st) ? ' done' : partial ? ' partial' : '');
+    el.setAttribute('aria-label', st.empty ? `Stall ${st.stall}, empty` : `Stall ${st.stall}, ewe ${st.ewe ?? 'not assigned'}`);
+    const dots = st.empty ? '' : `<div class="dots"><span class="dot${st.before?' on':''}"></span><span class="dot${st.after?' on':''}"></span>${isMeter(st)?`<span class="dot${st.milk?' on':''}"></span>`:''}</div>`;
+    el.innerHTML = `<div class="tile-top"><span class="ewe num${st.ewe==null?' none':''}">${st.ewe ?? (st.empty ? '' : '—')}</span>${isMeter(st)?'<span class="tag">M</span>':''}</div>
+      <div class="tile-bot">${dots}<span class="stall-lbl num">st ${st.stall}</span></div>`;
+    el.onclick = () => openStall(i);
+    g.appendChild(el);
+  });
+}
+$('prevBatch').onclick = () => { if (S.cur > 0){ S.cur--; save(); renderHome(); } };
+$('nextBatchNav').onclick = () => { if (S.cur < S.batches.length - 1){ S.cur++; save(); renderHome(); } };
+$('newBatchBtn').onclick = () => {
+  const b = batch();
+  const open = b.stalls.filter(s => !s.empty && !isDone(s) && (s.before || s.after)).length;
+  if (S.cur !== S.batches.length - 1){ S.cur = S.batches.length - 1; renderHome(); toast('Moved to the latest batch'); return; }
+  if (open && !confirm(`${open} ewe(s) in batch ${b.n} are not complete. Start a new batch anyway?`)) return;
+  newBatch(); save(); renderHome();
+};
+$('sweepBtn').onclick = () => {
+  const i = nextSweep(0);
+  if (i < 0){ toast('All stalls have a before photo. Tap a ewe to take her after photo.'); return; }
+  openCam({ mode:'sweep', si:i });
+};
+function nextSweep(from){
+  const st = batch().stalls;
+  for (let i = from; i < st.length; i++) if (!st[i].empty && !st[i].before) return i;
+  for (let i = 0; i < from; i++) if (!st[i].empty && !st[i].before) return i;
+  return -1;
+}
+
+/* ---------- stall sheet ---------- */
+let sheetIdx = -1, sheetURLs = [];
+async function thumb(el, rec){
+  el.innerHTML = '';
+  if (!rec){ el.textContent = 'No photo'; return; }
+  const blob = await idbGet('photos', rec.keys[0]);
+  if (!blob){ el.textContent = 'Missing'; return; }
+  const u = URL.createObjectURL(blob); sheetURLs.push(u);
+  const img = document.createElement('img'); img.src = u; img.alt = ''; el.appendChild(img);
+}
+async function openStall(i){
+  sheetIdx = i; const st = batch().stalls[i];
+  $('stTitle').textContent = st.ewe != null ? `Ewe ${st.ewe}` : `Stall ${st.stall}`;
+  $('stSub').textContent = `Batch ${batch().n}, stall ${st.stall}${isMeter(st) ? ', milkmeter' : ''}${st.empty ? ', empty' : ''}`;
+  $('stBefore').textContent = st.before ? 'Retake before' : 'Take before';
+  $('stAfter').textContent = st.after ? 'Retake after' : 'Take after';
+  $('stBeforeT').textContent = st.before ? `${hm(st.before.t)}, ${st.before.keys.length} photo(s)` : '';
+  $('stAfterT').textContent = st.after ? `${hm(st.after.t)}, ${st.after.keys.length} photo(s)` : '';
+  $('stMilk').value = st.milk ? st.milk.v : '';
+  $('stMilk').placeholder = '0.00 ' + S.settings.unit;
+  $('stMilkField').querySelector('label').textContent = isMeter(st) ? `Milk from meter (${S.settings.unit})` : `Milk (${S.settings.unit}), no meter on this stall`;
+  $('stEmpty').textContent = st.empty ? 'Stall is not empty' : 'Mark stall empty';
+  $('stEmpty').classList.toggle('hidden', st.ewe != null && !st.empty);
+  $('stallBack').classList.add('on');
+  await thumb($('stBeforeImg'), st.before);
+  await thumb($('stAfterImg'), st.after);
+}
+function closeStall(){ $('stallBack').classList.remove('on'); sheetURLs.forEach(URL.revokeObjectURL); sheetURLs = []; sheetIdx = -1; }
+$('stClose').onclick = closeStall;
+$('stallBack').onclick = e => { if (e.target.id === 'stallBack') closeStall(); };
+$('stBefore').onclick = () => { const i = sheetIdx; closeStall(); openCam({ mode:'before', si:i }); };
+$('stAfter').onclick = () => { const i = sheetIdx; closeStall(); openCam({ mode:'after', si:i }); };
+$('stEmpty').onclick = () => { const st = batch().stalls[sheetIdx]; st.empty = !st.empty; save(); closeStall(); renderHome(); };
+$('stMilkSave').onclick = () => {
+  const st = batch().stalls[sheetIdx]; const v = parseMilk($('stMilk').value);
+  if (v === null){ st.milk = null; } else if (isNaN(v)){ toast('Enter a number like 1.25'); return; } else { ensureEwe(st); st.milk = { v, t:ts() }; }
+  save(); closeStall(); renderHome(); toast(v === null ? 'Milk cleared' : 'Milk saved');
+};
+function parseMilk(s){ s = String(s).trim().replace(',', '.'); if (!s) return null; const v = Number(s); return (isFinite(v) && v >= 0) ? v : NaN; }
+
+/* ---------- milk modal ---------- */
+let milkIdx = -1;
+function openMilk(i){
+  milkIdx = i; const st = batch().stalls[i];
+  $('mkTitle').textContent = `Milk for ewe ${st.ewe}`;
+  $('mkSub').textContent = `Stall ${st.stall}, read the meter now`;
+  $('mkUnit').textContent = S.settings.unit;
+  $('mkVal').value = st.milk ? st.milk.v : '';
+  $('milkBack').classList.add('on');
+  setTimeout(() => $('mkVal').focus(), 50);
+}
+function closeMilk(){ $('milkBack').classList.remove('on'); $('mkVal').blur(); milkIdx = -1; renderHome(); }
+$('mkSkip').onclick = closeMilk;
+$('mkSave').onclick = () => {
+  const v = parseMilk($('mkVal').value);
+  if (v === null || isNaN(v)){ toast('Enter a number like 1.25'); return; }
+  batch().stalls[milkIdx].milk = { v, t:ts() }; save(); closeMilk(); toast('Milk saved');
+};
+
+/* ---------- camera ---------- */
+const vid = $('vid'), ov = $('ov');
+let stream = null, camCtx = null, busy = false, wake = null, lastBlob = null, lastURL = null;
+const cvs = document.createElement('canvas');
+
+async function startStream(){
+  stopStream();
+  const base = { width:{ ideal:3840 }, height:{ ideal:2160 } };
+  const v = S.settings.camId ? { ...base, deviceId:{ exact:S.settings.camId } } : { ...base, facingMode:{ ideal:'environment' } };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio:false, video:v });
+  } catch(e) {
+    if (S.settings.camId){ S.settings.camId = ''; save(); return startStream(); }
+    $('camMsg').textContent = 'Camera unavailable. Use the iPhone camera button below.';
+    $('shutter').disabled = true; return;
+  }
+  $('shutter').disabled = false;
+  vid.srcObject = stream;
+  try { await vid.play(); } catch(e){}
+  await new Promise(r => { if (vid.videoWidth) r(); else vid.onloadedmetadata = () => r(); });
+  $('res').textContent = `${vid.videoWidth}×${vid.videoHeight}`;
+  fitOverlay(); listCameras();
+}
+function stopStream(){ if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } }
+async function listCameras(){
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    const sel = $('sCam'); const cur = S.settings.camId;
+    sel.innerHTML = '<option value="">Default back camera</option>' + devs.map(d => `<option value="${d.deviceId}">${(d.label || 'Camera').replace(/</g,'')}</option>`).join('');
+    sel.value = cur;
+  } catch(e){}
+}
+function fitOverlay(){
+  const sw = $('stage').clientWidth, sh = $('stage').clientHeight;
+  const vw = vid.videoWidth || 3, vh = vid.videoHeight || 4;
+  const k = Math.min(sw / vw, sh / vh), w = vw * k, h = vh * k;
+  Object.assign(ov.style, { left:(sw - w) / 2 + 'px', top:(sh - h) / 2 + 'px', width:w + 'px', height:h + 'px' });
+  const g = S.settings.guide;
+  ov.querySelector('[data-k=l]').style.left = g.l * 100 + '%';
+  ov.querySelector('[data-k=r]').style.left = g.r * 100 + '%';
+  ov.querySelector('[data-k=f]').style.top = g.f * 100 + '%';
+}
+window.addEventListener('resize', () => { if ($('cam').classList.contains('on')) fitOverlay(); });
+
+// guide dragging
+ov.querySelectorAll('.gl').forEach(line => {
+  line.addEventListener('pointerdown', e => {
+    if (!ov.classList.contains('edit')) return;
+    line.setPointerCapture(e.pointerId);
+    const k = line.dataset.k;
+    const move = ev => {
+      const r = ov.getBoundingClientRect();
+      const f = k === 'f' ? (ev.clientY - r.top) / r.height : (ev.clientX - r.left) / r.width;
+      S.settings.guide[k] = Math.min(0.98, Math.max(0.02, f)); fitOverlay();
+    };
+    const up = () => { line.removeEventListener('pointermove', move); line.removeEventListener('pointerup', up); line.removeEventListener('pointercancel', up); save(); };
+    line.addEventListener('pointermove', move); line.addEventListener('pointerup', up); line.addEventListener('pointercancel', up);
+  });
+});
+$('guideBtn').onclick = () => {
+  const on = ov.classList.toggle('edit');
+  $('camMsg').textContent = on ? 'Drag the orange lines onto the rails and floor, then tap the guide button again' : 'Line up the rails and floor with the green lines';
+};
+
+// ghost
+async function loadGhost(){
+  const img = $('ghost');
+  if (img.dataset.u){ URL.revokeObjectURL(img.dataset.u); img.dataset.u = ''; img.removeAttribute('src'); }
+  if (!S.settings.ghostKey) return false;
+  const b = await idbGet('photos', S.settings.ghostKey); if (!b) return false;
+  const u = URL.createObjectURL(b); img.src = u; img.dataset.u = u; return true;
+}
+$('ghostBtn').onclick = async () => {
+  if (ov.classList.contains('ghost')){ ov.classList.remove('ghost'); $('ghostBtn').textContent = 'Ghost off'; $('ghostBtn').classList.remove('on'); return; }
+  if (!(await loadGhost())){ toast('Take a good photo first, then tap "Use last as ghost"'); return; }
+  ov.classList.add('ghost'); $('ghostBtn').textContent = 'Ghost on'; $('ghostBtn').classList.add('on');
+};
+$('setGhostBtn').onclick = async () => {
+  if (!lastBlob){ toast('Take a photo first'); return; }
+  if (S.settings.ghostKey) await idbDel('photos', S.settings.ghostKey).catch(()=>{});
+  S.settings.ghostKey = 'ghost_' + Date.now(); await idbPut('photos', S.settings.ghostKey, lastBlob); save();
+  await loadGhost(); ov.classList.add('ghost'); $('ghostBtn').textContent = 'Ghost on'; $('ghostBtn').classList.add('on');
+  toast('Ghost set from last photo');
+};
+
+function camLabels(){
+  const st = batch().stalls[camCtx.si];
+  const kind = camCtx.mode === 'after' ? 'after' : 'before';
+  const eweNo = st.ewe != null ? st.ewe : S.session.nextEwe;
+  $('camTitle').innerHTML = `<span class="pill ${kind}">${kind.toUpperCase()}</span>Ewe ${eweNo}`;
+  $('camSub').textContent = `Batch ${batch().n}, stall ${st.stall}${camCtx.mode === 'sweep' ? `, ${batch().stalls.filter(s=>!s.empty && !s.before).length} left` : ''}`;
+  $('bigNum').textContent = eweNo;
+  const sweep = camCtx.mode === 'sweep';
+  $('camBack').style.visibility = sweep ? 'visible' : 'hidden';
+  $('camSkip').style.visibility = sweep ? 'visible' : 'hidden';
+}
+async function openCam(ctx){
+  camCtx = ctx; show('cam'); camLabels();
+  ov.classList.remove('edit');
+  $('camMsg').textContent = 'Line up the rails and floor with the green lines';
+  $('lastThumb').style.display = 'none';
+  try { wake = await navigator.wakeLock.request('screen'); } catch(e){}
+  await startStream();
+}
+function closeCam(){
+  stopStream(); camCtx = null; show('home'); renderHome();
+  try { wake && wake.release(); } catch(e){} wake = null;
+}
+$('camClose').onclick = closeCam;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && camCtx) startStream();
+});
+
+function grab(){
+  return new Promise((res, rej) => {
+    cvs.width = vid.videoWidth; cvs.height = vid.videoHeight;
+    cvs.getContext('2d').drawImage(vid, 0, 0);
+    cvs.toBlob(b => b ? res(b) : rej(new Error('capture failed')), 'image/jpeg', S.settings.quality);
+  });
+}
+function flash(){ const f = $('flash'); f.classList.add('go'); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('go'))); }
+
+async function storeShots(blobs){
+  const b = batch(), st = b.stalls[camCtx.si];
+  const kind = camCtx.mode === 'after' ? 'after' : 'before';
+  ensureEwe(st); st.empty = false;
+  if (st[kind]) for (const k of st[kind].keys) await idbDel('photos', k).catch(()=>{});
+  const keys = [];
+  for (let i = 0; i < blobs.length; i++){
+    const k = `${S.session.id}_b${b.n}_s${st.stall}_${kind}_${i+1}_${Date.now()}`;
+    await idbPut('photos', k, blobs[i]); keys.push(k);
+  }
+  st[kind] = { keys, t:ts() };
+  await save();
+  lastBlob = blobs[0];
+  if (lastURL) URL.revokeObjectURL(lastURL);
+  lastURL = URL.createObjectURL(lastBlob);
+  const th = $('lastThumb'); th.src = lastURL; th.style.display = 'block';
+}
+async function afterCapture(){
+  const st = batch().stalls[camCtx.si];
+  if (camCtx.mode === 'sweep'){
+    const n = nextSweep(camCtx.si + 1);
+    if (n < 0){ toast(`Before sweep done for batch ${batch().n}`); closeCam(); return; }
+    camCtx.si = n; camLabels(); return;
+  }
+  const i = camCtx.si, wasAfter = camCtx.mode === 'after';
+  closeCam();
+  if (wasAfter && isMeter(st)) openMilk(i);
+  else toast(`Saved ${wasAfter ? 'after' : 'before'} photo for ewe ${st.ewe}`);
+}
+$('shutter').onclick = async () => {
+  if (busy || !stream) return; busy = true; $('shutter').disabled = true;
+  try {
+    const blobs = [], n = Math.max(1, Math.min(5, S.settings.burst | 0));
+    for (let i = 0; i < n; i++){ flash(); blobs.push(await grab()); if (i < n - 1) await sleep(150); }
+    await storeShots(blobs); await afterCapture();
+  } catch(e){ toast('Photo failed: ' + e.message); }
+  finally { busy = false; $('shutter').disabled = !stream; }
+};
+$('nativeBtn').onclick = () => $('nativeInput').click();
+$('nativeInput').onchange = async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f || !camCtx) return;
+  try { await storeShots([f]); await afterCapture(); } catch(err){ toast('Could not save photo: ' + err.message); }
+};
+$('camSkip').onclick = () => {
+  const st = batch().stalls[camCtx.si]; if (st.ewe != null){ toast('This stall already has a ewe'); return; }
+  st.empty = true; save();
+  const n = nextSweep(camCtx.si + 1);
+  if (n < 0){ closeCam(); return; }
+  camCtx.si = n; camLabels(); toast(`Stall ${st.stall} marked empty`);
+};
+$('camBack').onclick = () => {
+  const st = batch().stalls;
+  let i = camCtx.si - 1;
+  while (i >= 0 && st[i].empty) i--;
+  if (i < 0){ toast('Already at the first stall'); return; }
+  camCtx.si = i; camLabels(); toast(`Back to stall ${st[i].stall}. The next photo replaces it.`);
+};
+
+/* ---------- settings ---------- */
+function segSet(id, v){ $(id).querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+function openSettings(){
+  $('sDate').value = S.session.date; segSet('sMilking', S.session.milking);
+  $('sNext').value = S.session.nextEwe; $('sBatch').value = S.settings.batchSize;
+  $('sMeters').value = S.settings.meterStalls.join(','); segSet('sUnit', S.settings.unit);
+  $('sBurst').value = S.settings.burst; listCameras(); show('settings');
+}
+$('settingsBtn').onclick = openSettings;
+$('sMilking').onclick = e => { const v = e.target.dataset.v; if (v){ S.session.milking = v; segSet('sMilking', v); save(); } };
+$('sUnit').onclick = e => { const v = e.target.dataset.v; if (v){ S.settings.unit = v; segSet('sUnit', v); save(); } };
+$('settingsClose').onclick = () => {
+  S.session.date = $('sDate').value || S.session.date;
+  const used = Math.max(0, ...S.batches.flatMap(b => b.stalls.map(s => s.ewe || 0)));
+  const nx = parseInt($('sNext').value, 10);
+  if (nx > 0){ if (nx <= used) toast(`Next ewe must be above ${used}; kept ${S.session.nextEwe}`); else S.session.nextEwe = nx; }
+  const bs = parseInt($('sBatch').value, 10); if (bs > 0 && bs <= 60) S.settings.batchSize = bs;
+  const m = $('sMeters').value.split(/[^0-9]+/).map(Number).filter(n => n > 0); S.settings.meterStalls = m;
+  const bu = parseInt($('sBurst').value, 10); if (bu >= 1 && bu <= 5) S.settings.burst = bu;
+  S.settings.camId = $('sCam').value;
+  save(); show('home'); renderHome();
+};
+$('resetGuide').onclick = () => { S.settings.guide = { l:0.14, r:0.86, f:0.86 }; save(); toast('Guide lines reset'); };
+
+/* ---------- export ---------- */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function makeZip(entries, onProg){
+  const enc = new TextEncoder(), d = new Date();
+  const dt = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const dd = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const parts = [], central = []; let offset = 0;
+  for (let i = 0; i < entries.length; i++){
+    const e = entries[i];
+    const data = new Uint8Array(await e.blob.arrayBuffer());
+    const crc = crc32(data), size = data.length, nb = enc.encode(e.name);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint16(10, dt, true); lh.setUint16(12, dd, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, nb.length, true);
+    parts.push(lh.buffer, nb, e.blob);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(12, dt, true); ch.setUint16(14, dd, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, nb.length, true); ch.setUint32(42, offset, true);
+    central.push(ch.buffer, nb);
+    offset += 30 + nb.length + size;
+    if (onProg) onProg(i + 1, entries.length);
+  }
+  const cdSize = central.reduce((a, b) => a + b.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end.buffer], { type:'application/zip' });
+}
+function csvCell(v){ v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function fileBase(b, st){ return `b${pad(b.n)}_` + (st.ewe != null ? `e${pad(st.ewe, 3)}` : `s${pad(st.stall)}`); }
+
+let zipFile = null, zipURL = null;
+async function doExport(batches){
+  $('exportReady').classList.add('hidden');
+  const status = $('exportStatus'); status.classList.remove('hidden'); status.textContent = 'Collecting photos…';
+  const rows = [['session_date','milking','batch','stall','ewe','empty','milkmeter','before_time','after_time','milk','unit','milk_time','before_files','after_files']];
+  const entries = [];
+  for (const b of batches){
+    for (const st of b.stalls){
+      const names = { before:[], after:[] };
+      for (const kind of ['before','after']){
+        if (!st[kind]) continue;
+        for (let i = 0; i < st[kind].keys.length; i++){
+          const blob = await idbGet('photos', st[kind].keys[i]); if (!blob) continue;
+          const name = `${fileBase(b, st)}_${kind}_${i+1}.jpg`;
+          names[kind].push(name); entries.push({ name:'photos/' + name, blob });
+        }
+      }
+      if (!st.empty && !st.before && !st.after && !st.milk) continue;
+      rows.push([S.session.date, S.session.milking, b.n, st.stall, st.ewe ?? '', st.empty ? 1 : 0, isMeter(st) ? 1 : 0,
+        st.before ? st.before.t : '', st.after ? st.after.t : '', st.milk ? st.milk.v : '', S.settings.unit,
+        st.milk ? st.milk.t : '', names.before.join(';'), names.after.join(';')]);
+    }
+  }
+  const csv = rows.map(r => r.map(csvCell).join(',')).join('\n');
+  entries.unshift({ name:'session.csv', blob:new Blob([csv], { type:'text/csv' }) });
+  const total = entries.reduce((a, e) => a + e.blob.size, 0);
+  if (total > 3.8e9){ status.textContent = 'Too large for one ZIP. Export batch by batch instead.'; return; }
+  const zip = await makeZip(entries, (i, n) => { status.textContent = `Packing ${i}/${n} files…`; });
+  const tag = batches.length === 1 ? `_batch${pad(batches[0].n)}` : '_all';
+  const name = `milk_${S.session.date}_${S.session.milking}${tag}.zip`;
+  zipFile = new File([zip], name, { type:'application/zip' });
+  if (zipURL) URL.revokeObjectURL(zipURL); zipURL = URL.createObjectURL(zipFile);
+  status.textContent = `Ready: ${name}, ${(zip.size / 1e6).toFixed(1)} MB, ${rows.length - 1} stalls`;
+  $('exportReady').classList.remove('hidden');
+  batches.forEach(b => b.exported = ts()); save(); renderExportList();
+}
+$('shareZip').onclick = async () => {
+  if (!zipFile) return;
+  try {
+    if (navigator.canShare && navigator.canShare({ files:[zipFile] })) await navigator.share({ files:[zipFile], title:zipFile.name });
+    else $('saveZip').click();
+  } catch(e){ if (e.name !== 'AbortError') toast('Sharing failed, try Download'); }
+};
+$('saveZip').onclick = () => {
+  if (!zipURL) return;
+  const a = document.createElement('a'); a.href = zipURL; a.download = zipFile.name; document.body.appendChild(a); a.click(); a.remove();
+};
+function renderExportList(){
+  const l = $('batchList'); l.innerHTML = '';
+  S.batches.forEach(b => {
+    const occ = b.stalls.filter(s => !s.empty), ewes = b.stalls.filter(s => s.ewe != null).map(s => s.ewe);
+    const row = document.createElement('div'); row.className = 'list-row';
+    row.innerHTML = `<div class="t"><b>Batch ${b.n}</b><span class="num">${ewes.length ? `ewes ${Math.min(...ewes)}–${Math.max(...ewes)}, ` : ''}${occ.filter(isDone).length}/${occ.length} complete${b.exported ? `, exported ${hm(b.exported)}` : ''}</span></div>`;
+    const btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = 'Export';
+    btn.onclick = () => doExport([b]); row.appendChild(btn); l.appendChild(row);
+  });
+}
+async function storageInfo(){
+  try {
+    const e = await navigator.storage.estimate();
+    $('storageInfo').textContent = `Using ${(e.usage / 1e6).toFixed(0)} MB of about ${(e.quota / 1e9).toFixed(1)} GB available`;
+  } catch(err){ $('storageInfo').textContent = 'Storage size unavailable'; }
+}
+$('exportBtn').onclick = () => { renderExportList(); storageInfo(); $('exportStatus').classList.add('hidden'); $('exportReady').classList.add('hidden'); show('exportPage'); };
+$('exportClose').onclick = () => { show('home'); renderHome(); };
+$('exportAll').onclick = () => doExport(S.batches);
+$('clearSession').onclick = async () => {
+  if (!confirm('Delete all batches and photos from this phone? Export first if you have not.')) return;
+  if (!confirm('This cannot be undone. Delete everything?')) return;
+  const settings = S.settings; settings.ghostKey = null;
+  await idbClear('photos');
+  S = defaultState(); S.settings = settings; newBatch(); await save();
+  show('home'); renderHome(); toast('Session cleared');
+};
+
+renderHome();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+})().catch(e => { document.body.innerHTML = '<p style="padding:24px;font-family:sans-serif">App failed to start: ' + e.message + '</p>'; });
+</script>
+</body>
+</html>
