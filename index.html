@@ -294,6 +294,9 @@ function defaultState(){
   };
 }
 let S = (await idbGet('kv', 'state')) || defaultState();
+{ const d = defaultState().settings;
+  if (S.settings && S.settings.maxDim == null){ S.settings.quality = d.quality; S.settings.maxDim = d.maxDim; }
+  S.settings = Object.assign({}, d, S.settings); }
 function newBatch(){
   const n = S.batches.length + 1, stalls = [];
   for (let i = 1; i <= S.settings.batchSize; i++) stalls.push({ stall:i, ewe:null, empty:false, before:null, after:null, milk:null });
