@@ -274,8 +274,7 @@ input[type=text],input[type=number],input[type=date],select{height:50px;border-r
     <div class="tog-row"><div class="t"><b>Batch video</b><span>One video per batch, with pause and continue</span></div><button class="switch" role="switch" data-set="features.video" aria-label="Batch video"></button></div>
 
     <div class="section-t">Camera and sound</div>
-    <div class="tog-row"><div class="t"><b>5-second timer</b><span>Before and after photos shoot by themselves 5 seconds after the camera opens, and after each photo in a sweep</span></div><button class="switch" role="switch" data-set="timer" aria-label="5-second timer"></button></div>
-    <div class="field"><label for="sBurst">Photos per shot</label><input type="number" id="sBurst" inputmode="numeric" min="1" max="5"><span class="hint">Burst size. You pick the sharpest frame later.</span></div>
+    <div class="tog-row"><div class="t"><b>5-second timer</b><span>Before and after photos: tap the shutter and it shoots 5 seconds later. Morphology photos shoot right away.</span></div><button class="switch" role="switch" data-set="timer" aria-label="5-second timer"></button></div>
     <div class="field"><label for="sCam">Camera</label><select id="sCam"><option value="">Default back camera</option></select><span class="hint">Camera names appear after you open the camera once.</span></div>
     <div class="tog-row"><div class="t"><b>Record sound in video</b><span>Lets you say ewe numbers aloud while filming</span></div><button class="switch" role="switch" data-set="videoAudio" aria-label="Record sound in video"></button></div>
     <div class="tog-row"><div class="t"><b>Beep on each photo</b><span>Confirms the shot when you can't see the screen. Needs silent mode off.</span></div><button class="switch" role="switch" data-set="beep" aria-label="Beep on each photo"></button></div>
@@ -401,7 +400,7 @@ const HOTKEYS = new Set(['Enter',' ','Spacebar','PageDown','PageUp','ArrowRight'
 const DROP = '<svg width="8" height="10" viewBox="0 0 10 12" aria-hidden="true"><path d="M5 0C5 0 0 5.5 0 8a5 5 0 0 0 10 0C10 5.5 5 0 5 0z" fill="currentColor"/></svg>';
 
 function defaultSettings(){
-  return { batchSize:30, meterStalls:[1,2,3,4], unit:'kg', burst:3, quality:0.72, maxDim:1600, camId:'',
+  return { batchSize:30, meterStalls:[1,2,3,4], unit:'kg', burst:1, quality:0.72, maxDim:1600, camId:'',
     guide:{ l:0.14, r:0.86, f:0.86 }, ghostKey:null,
     features:{ morph:true, traits:true, bcs:true, video:true },
     videoAudio:true, videoBitrate:3000000, beep:true, timer:true, timerSecs:5 };
@@ -773,15 +772,18 @@ $('setGhostBtn').onclick = async () => {
 
 /* ---------- 5-second timer (before and after photos only) ---------- */
 let cdTimer = null;
-function cdStop(){ clearInterval(cdTimer); cdTimer = null; $('cdNum').classList.add('hidden'); }
-function cdArm(){
+const timerKind = () => S.settings.timer && camCtx && camCtx.mode !== 'video' && ['before','after'].includes(curKind());
+function camHint(){
+  if (!camCtx || camCtx.mode === 'video') return;
+  $('camMsg').textContent = timerKind() ? `Tap the shutter, then you have ${S.settings.timerSecs || 5} seconds to place the phone` : 'Line up the rails and floor with the green lines';
+}
+function cdStop(){ const was = !!cdTimer; clearInterval(cdTimer); cdTimer = null; $('cdNum').classList.add('hidden'); if (was) camHint(); }
+function cdStart(){
   cdStop();
-  if (!camCtx || camCtx.mode === 'video' || !S.settings.timer || !stream) return;
-  const kind = curKind();
-  if (kind !== 'before' && kind !== 'after') return;
+  if (!stream) return;
   let n = S.settings.timerSecs || 5;
   const tick = () => { $('cdNum').textContent = n; $('cdNum').classList.remove('hidden'); beep(700, 0.06); };
-  $('camMsg').textContent = `Shoots by itself in ${n} seconds`;
+  $('camMsg').textContent = 'Timer running. Tap the shutter again to cancel.';
   tick();
   cdTimer = setInterval(() => { n--; if (n <= 0){ cdStop(); shoot(); } else tick(); }, 1000);
 }
@@ -800,6 +802,7 @@ function camLabels(){
   const sweep = camCtx.mode === 'sweep';
   $('camBack').style.visibility = sweep ? 'visible' : 'hidden';
   $('camSkip').style.visibility = sweep ? 'visible' : 'hidden';
+  camHint();
 }
 async function openCam(ctx){
   camCtx = ctx;
@@ -822,7 +825,6 @@ async function openCam(ctx){
   }
   try { wake = await navigator.wakeLock.request('screen'); } catch(e){}
   await startStream();
-  if (!video) cdArm();
 }
 async function closeCam(){
   cdStop();
@@ -863,10 +865,10 @@ async function storeShots(blobs, kind){
 async function afterCapture(kind){
   if (camCtx.mode === 'sweep'){
     camCtx.queue.shift();
-    if (camCtx.queue.length){ camLabels(); cdArm(); return; }
+    if (camCtx.queue.length){ camLabels(); return; }
     const n = nextSweep(camCtx.si + 1, camCtx.kinds);
     if (n < 0){ beep(900, 0.1, 0.12); beep(1300, 0.15, 0.26); toast(`Sweep done for batch ${batch().n}`); await closeCam(); return; }
-    camCtx.si = n; camCtx.queue = camCtx.kinds.filter(k => !batch().stalls[n][k]); camLabels(); cdArm(); return;
+    camCtx.si = n; camCtx.queue = camCtx.kinds.filter(k => !batch().stalls[n][k]); camLabels(); return;
   }
   const i = camCtx.si, st = batch().stalls[i];
   await closeCam();
@@ -881,14 +883,18 @@ async function shoot(){
   busy = true; $('shutter').disabled = true;
   try {
     const kind = curKind();
-    const blobs = [], n = Math.max(1, Math.min(5, S.settings.burst | 0));
-    for (let i = 0; i < n; i++){ flash(); blobs.push(await grab()); if (i < n - 1) await sleep(150); }
+    flash(); const blobs = [await grab()];
     await storeShots(blobs, kind); beep();
     await afterCapture(kind);
   } catch(e){ beep(300, 0.35); toast('Photo failed: ' + e.message); }
   finally { busy = false; $('shutter').disabled = !stream; }
 }
-$('shutter').onclick = shoot;
+$('shutter').onclick = () => {
+  if (!camCtx || camCtx.mode === 'video' || busy) return;
+  if (!timerKind()){ shoot(); return; }
+  if (cdTimer){ cdStop(); toast('Timer cancelled'); return; }
+  cdStart();
+};
 
 function downscaleFile(file){
   return new Promise((res, rej) => {
@@ -918,14 +924,14 @@ $('camSkip').onclick = () => {
   st.empty = true; save();
   const n = nextSweep(camCtx.si + 1, camCtx.kinds);
   if (n < 0){ closeCam(); return; }
-  camCtx.si = n; camCtx.queue = camCtx.kinds.filter(k => !batch().stalls[n][k]); camLabels(); cdArm(); toast(`Stall ${st.stall} marked empty`);
+  camCtx.si = n; camCtx.queue = camCtx.kinds.filter(k => !batch().stalls[n][k]); cdStop(); camLabels(); toast(`Stall ${st.stall} marked empty`);
 };
 $('camBack').onclick = () => {
   const st = batch().stalls;
   let i = camCtx.si - 1;
   while (i >= 0 && st[i].empty) i--;
   if (i < 0){ toast('Already at the first stall'); return; }
-  camCtx.si = i; camCtx.queue = camCtx.kinds.slice(); camLabels(); cdArm();
+  cdStop(); camCtx.si = i; camCtx.queue = camCtx.kinds.slice(); camLabels();
   toast(`Back to stall ${st[i].stall}. Next photos replace it.`);
 };
 
@@ -1026,7 +1032,7 @@ document.addEventListener('visibilitychange', () => {
     if (recState === 'recording'){ recAcc += (performance.now() - recT0) / 1000; recState = 'paused'; recFinishPart(); save(); }
   } else if (camCtx){
     cdStop();
-    startStream().then(() => { if (!camCtx) return; if (camCtx.mode === 'video') videoUI(); else cdArm(); });
+    startStream().then(() => { if (!camCtx) return; if (camCtx.mode === 'video') videoUI(); });
   }
 });
 
@@ -1056,7 +1062,7 @@ function openSettings(){
   $('sDate').value = S.session.date; segSet('sMilking', S.session.milking);
   $('sNext').value = S.session.nextEwe; $('sBatch').value = S.settings.batchSize;
   $('sMeters').value = S.settings.meterStalls.join(','); segSet('sUnit', S.settings.unit);
-  $('sBurst').value = S.settings.burst; syncSwitches(); listCameras();
+  syncSwitches(); listCameras();
   $('keyTest').textContent = 'Connect your Bluetooth remote, then press its button here.';
   show('settings');
 }
@@ -1070,7 +1076,6 @@ $('settingsClose').onclick = () => {
   if (nx > 0){ if (nx <= used && nx !== S.session.nextEwe) toast(`Next ewe must be above ${used}; kept ${S.session.nextEwe}`); else S.session.nextEwe = nx; }
   const bs = parseInt($('sBatch').value, 10); if (bs > 0 && bs <= 60) S.settings.batchSize = bs;
   S.settings.meterStalls = $('sMeters').value.split(/[^0-9]+/).map(Number).filter(n => n > 0);
-  const bu = parseInt($('sBurst').value, 10); if (bu >= 1 && bu <= 5) S.settings.burst = bu;
   S.settings.camId = $('sCam').value;
   save(); show('home'); renderHome();
 };
