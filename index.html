@@ -243,6 +243,7 @@ input[type=text],input[type=number],input[type=date],select{height:50px;border-r
   <div class="camaux photo-ctl">
     <button class="chip" id="ghostBtn">Ghost off</button>
     <button class="chip" id="setGhostBtn">Use last as ghost</button>
+    <button class="chip" id="lightBtn">Light on</button>
     <button class="chip" id="nativeBtn">iPhone camera</button>
     <span id="res" class="num"></span>
   </div>
@@ -274,6 +275,7 @@ input[type=text],input[type=number],input[type=date],select{height:50px;border-r
     <div class="tog-row"><div class="t"><b>Batch video</b><span>One video per batch, with pause and continue</span></div><button class="switch" role="switch" data-set="features.video" aria-label="Batch video"></button></div>
 
     <div class="section-t">Camera and sound</div>
+    <div class="tog-row"><div class="t"><b>Light for before and after</b><span>Turns the iPhone flashlight on while the camera is on a before or after photo. Off for morphology photos and video.</span></div><button class="switch" role="switch" data-set="light" aria-label="Light for before and after photos"></button></div>
     <div class="tog-row"><div class="t"><b>5-second timer</b><span>Before and after photos: tap the shutter and it shoots 5 seconds later. Morphology photos shoot right away.</span></div><button class="switch" role="switch" data-set="timer" aria-label="5-second timer"></button></div>
     <div class="field"><label for="sCam">Camera</label><select id="sCam"><option value="">Default back camera</option></select><span class="hint">Camera names appear after you open the camera once.</span></div>
     <div class="tog-row"><div class="t"><b>Record sound in video</b><span>Lets you say ewe numbers aloud while filming</span></div><button class="switch" role="switch" data-set="videoAudio" aria-label="Record sound in video"></button></div>
@@ -403,7 +405,7 @@ function defaultSettings(){
   return { batchSize:30, meterStalls:[1,2,3,4], unit:'kg', burst:1, quality:0.72, maxDim:1600, camId:'',
     guide:{ l:0.14, r:0.86, f:0.86 }, ghostKey:null,
     features:{ morph:true, traits:true, bcs:true, video:true },
-    videoAudio:true, videoBitrate:3000000, beep:true, timer:true, timerSecs:5 };
+    videoAudio:true, videoBitrate:3000000, beep:true, timer:true, timerSecs:5, light:true };
 }
 function defaultState(){
   return { settings:defaultSettings(),
@@ -706,9 +708,9 @@ async function startStream(){
   try { await vid.play(); } catch(e){}
   await new Promise(r => { if (vid.videoWidth) r(); else vid.onloadedmetadata = () => r(); });
   $('res').textContent = `${vid.videoWidth}×${vid.videoHeight}`;
-  fitOverlay(); listCameras();
+  fitOverlay(); listCameras(); syncTorch();
 }
-function stopStream(){ if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } }
+function stopStream(){ if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } torchOn = false; }
 async function listCameras(){
   try {
     const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
@@ -770,6 +772,37 @@ $('setGhostBtn').onclick = async () => {
   toast('Ghost set from last photo');
 };
 
+/* ---------- flashlight for before and after photos ---------- */
+let torchOn = false, torchQ = Promise.resolve(), torchOK = null;
+function videoTrack(){ return stream ? stream.getVideoTracks()[0] : null; }
+function torchSupported(){
+  const t = videoTrack(); if (!t || !t.getCapabilities) return false;
+  try { return !!t.getCapabilities().torch; } catch(e){ return false; }
+}
+function setTorch(on){
+  torchQ = torchQ.then(async () => {
+    const t = videoTrack();
+    if (!t){ torchOn = false; return; }
+    if (on === torchOn) return;
+    if (on && !torchSupported()){ torchOK = false; updateLightChip(); return; }
+    try { await t.applyConstraints({ advanced:[{ torch:on }] }); torchOn = on; torchOK = true; }
+    catch(e){ torchOn = false; if (on){ torchOK = false; } }
+    updateLightChip();
+  });
+  return torchQ;
+}
+function updateLightChip(){
+  const b = $('lightBtn');
+  if (torchOK === false && S.settings.light){ b.textContent = 'No flashlight'; b.classList.remove('on'); return; }
+  b.textContent = S.settings.light ? 'Light on' : 'Light off';
+  b.classList.toggle('on', !!S.settings.light);
+}
+function syncTorch(){
+  if (!camCtx || camCtx.mode === 'video' || !stream) return;
+  setTorch(!!S.settings.light && ['before','after'].includes(curKind()));
+}
+$('lightBtn').onclick = () => { S.settings.light = !S.settings.light; torchOK = null; save(); updateLightChip(); syncTorch(); };
+
 /* ---------- 5-second timer (before and after photos only) ---------- */
 let cdTimer = null;
 const timerKind = () => S.settings.timer && camCtx && camCtx.mode !== 'video' && ['before','after'].includes(curKind());
@@ -802,7 +835,7 @@ function camLabels(){
   const sweep = camCtx.mode === 'sweep';
   $('camBack').style.visibility = sweep ? 'visible' : 'hidden';
   $('camSkip').style.visibility = sweep ? 'visible' : 'hidden';
-  camHint();
+  camHint(); updateLightChip(); syncTorch();
 }
 async function openCam(ctx){
   camCtx = ctx;
